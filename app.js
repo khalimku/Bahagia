@@ -243,7 +243,7 @@
         password: normalizedPassword,
         options: {
           data: { name: normalizedEmail.split('@')[0], role: 'user' },
-          emailRedirectTo: `${location.origin}${location.pathname}`
+          emailRedirectTo: cfg.authRedirectUrl || location.href.split('#')[0]
         }
       });
       if (error) throw error;
@@ -284,7 +284,7 @@
     }
 
     const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: `${location.origin}${location.pathname}`
+      redirectTo: cfg.authRedirectUrl || location.href.split('#')[0]
     });
     if (error) throw error;
     toast('Link reset password dikirim ke email Anda.');
@@ -526,9 +526,10 @@
       toast('Isi config.js untuk mengaktifkan Google.', true);
       return;
     }
+    const redirectTo = cfg.authRedirectUrl || location.href.split('#')[0] || window.location.origin + window.location.pathname;
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: location.href.split('#')[0] }
+      options: { redirectTo }
     });
     if (error) toast(error.message, true);
   });
