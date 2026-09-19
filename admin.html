@@ -15,10 +15,16 @@
     .admin-page-header h1 { margin: 6px 0 0; }
     .admin-page-header a { color: inherit; text-decoration: none; }
     .admin-page .admin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .role-users-list { display:flex; flex-direction:column; gap:12px; margin-top:10px; }
+    .role-user { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background: rgba(255,255,255,.5); }
+    .role-user-info { display:flex; flex-direction:column; gap:2px; }
+    .role-user select { min-width: 130px; padding: 8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff; }
     @media (max-width: 760px) {
       .admin-page-main { padding: 20px 16px 40px; }
       .admin-page-header { align-items:flex-start; flex-direction:column; }
       .admin-page .admin-grid { grid-template-columns: 1fr; }
+      .role-user { flex-direction:column; align-items:flex-start; }
+      .role-user select { width:100%; }
     }
   </style>
 </head>
@@ -64,11 +70,20 @@
             <label>Email copyright<input id="copyrightEmail"></label>
             <button class="gold-btn" id="saveSettings">Simpan Pengaturan</button>
           </div>
+
           <div class="admin-card">
             <h3>Statistik Platform</h3>
             <div class="admin-stat"><b id="adminUsers">0</b><span>Total Pengguna</span></div>
             <div class="admin-stat"><b id="adminBooks">0</b><span>Total Ebook</span></div>
             <button class="outline-btn full" id="refreshAdmin">Refresh Data</button>
+          </div>
+
+          <div class="admin-card" style="grid-column: 1 / -1;">
+            <h3>Kelola Pengguna</h3>
+            <p class="muted">Ubah role pengguna. Perubahan di-validasi oleh database RLS agar aman.</p>
+            <div id="roleUsersList" class="role-users-list">
+              <span class="muted">Memuat pengguna...</span>
+            </div>
           </div>
         </div>
       </section>
@@ -80,5 +95,6 @@
   <script src="config.js"></script>
   <script src="app.js"></script>
   <script src="admin-page.js"></script>
+  <script src="admin-role-panel.js"></script>
 </body>
 </html>
