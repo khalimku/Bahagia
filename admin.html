@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Panel — Webook Bahagia</title>
+  <meta name="description" content="Panel administrasi Webook Bahagia.">
+  <link rel="icon" href="assets/logo.jpg">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body.admin-page #authScreen { min-height: 100vh; }
+    body.admin-page #app { min-height: 100vh; }
+    .admin-page-main { max-width: 1180px; margin: 0 auto; padding: 32px 24px 56px; }
+    .admin-page-header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; }
+    .admin-page-header h1 { margin: 6px 0 0; }
+    .admin-page-header a { color: inherit; text-decoration: none; }
+    .admin-page .admin-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 760px) {
+      .admin-page-main { padding: 20px 16px 40px; }
+      .admin-page-header { align-items:flex-start; flex-direction:column; }
+      .admin-page .admin-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="admin-page">
+  <div id="toast" class="toast"></div>
+
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <img src="assets/logo.jpg" class="auth-logo" alt="Webook Bahagia">
+      <span class="eyebrow">AREA ADMIN</span>
+      <h1>Masuk ke panel admin.</h1>
+      <p>Halaman ini khusus administrator. Pengguna biasa akan diarahkan kembali ke halaman utama.</p>
+      <form id="emailForm">
+        <label>Email<input id="email" type="email" required placeholder="admin@email.com"></label>
+        <label>Password<input id="password" type="password" required minlength="6" placeholder="Password"></label>
+        <div class="auth-actions">
+          <button class="gold-btn" type="submit" id="loginBtn">Masuk</button>
+          <a class="outline-btn" href="index.html">Kembali</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <main class="admin-page-main">
+      <header class="admin-page-header">
+        <div>
+          <span class="eyebrow">WEBOOK BAHAGIA · PRIVATE AREA</span>
+          <h1>Admin Panel</h1>
+          <p class="muted">Kelola branding, statistik, dan role pengguna dari halaman khusus admin.</p>
+        </div>
+        <div class="auth-actions">
+          <a class="outline-btn" href="index.html">Halaman Utama</a>
+          <button id="logoutBtn" class="logout">Keluar</button>
+        </div>
+      </header>
+
+      <section id="admin" class="admin-section">
+        <div class="admin-grid">
+          <div class="admin-card">
+            <h3>Branding</h3>
+            <label>Nama website<input id="siteName"></label>
+            <label>Email copyright<input id="copyrightEmail"></label>
+            <button class="gold-btn" id="saveSettings">Simpan Pengaturan</button>
+          </div>
+          <div class="admin-card">
+            <h3>Statistik Platform</h3>
+            <div class="admin-stat"><b id="adminUsers">0</b><span>Total Pengguna</span></div>
+            <div class="admin-stat"><b id="adminBooks">0</b><span>Total Ebook</span></div>
+            <button class="outline-btn full" id="refreshAdmin">Refresh Data</button>
+          </div>
+        </div>
+      </section>
+      <footer><span>Webook Bahagia · Area Administrator</span><a href="index.html">Kembali ke aplikasi</a></footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="admin-page.js"></script>
+</body>
+</html>
