@@ -1,8 +1,12 @@
 /* Supabase browser configuration. Never put a service_role key here. */
 window.BAHAGIA_CONFIG = {
+  // Supabase Project Settings → API → Project URL
   supabaseUrl: '',
+  // Supabase Project Settings → API → publishable/anon key
   supabaseAnonKey: '',
-  storageBucket: 'ebooks'
+  storageBucket: 'ebooks',
+  // Use the deployed site URL in production. Leave empty to use the current page.
+  authRedirectUrl: ''
 };
 
 // Load the role-management module without requiring changes to the HTML shell.
