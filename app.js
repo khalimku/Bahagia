@@ -47,11 +47,31 @@
     const grid = $('bookGrid');
     if (!grid) return;
     grid.innerHTML = books.length
-      ? books.map((book, index) => `<article class="book-card"><div class="book-cover">▣</div><div><h3>${esc(book.title || book.name)}</h3><small>${esc(book.owner_email || book.email || '')}</small><button class="outline-btn" data-book-index="${index}">Buka</button></div></article>`).join('')
+      ? books.map((book, index) => `<article class="book-card">
+          <div class="book-cover">▣</div>
+          <div class="book-info">
+            <h3>${esc(book.title || book.name)}</h3>
+            <small>${esc(book.owner_email || book.email || '')}</small>
+            <div class="book-status">${book.is_public ? 'Publik' : 'Pribadi'}</div>
+            <div class="book-actions">
+              <button class="mini-btn" data-book-action="open" data-book-index="${index}">Buka</button>
+              <button class="mini-btn" data-book-action="toggle" data-book-index="${index}">${book.is_public ? 'Jadikan Pribadi' : 'Jadikan Publik'}</button>
+              <button class="mini-btn danger" data-book-action="delete" data-book-index="${index}">Hapus</button>
+            </div>
+          </div>
+        </article>`).join('')
       : '';
     $('emptyBooks')?.classList.toggle('hidden', books.length > 0);
-    grid.querySelectorAll('[data-book-index]').forEach(button => {
-      button.onclick = () => openBook(books[Number(button.dataset.bookIndex)]);
+    grid.querySelectorAll('[data-book-action]').forEach(button => {
+      const index = Number(button.dataset.bookIndex);
+      const action = button.dataset.bookAction;
+      button.onclick = () => {
+        const item = books[index];
+        if (!item) return;
+        if (action === 'open') openBook(item);
+        if (action === 'toggle') togglePublicBook(item);
+        if (action === 'delete') deleteBook(item);
+      };
     });
   }
 
@@ -162,10 +182,10 @@
       await loadProfile();
       await loadRemoteData();
     } else {
-      books = localBooks();
+      books = localBooks().map((book, index) => ({ ...book, id: book.id || `local-${index}` }));
       blocks = localBlocks();
       profile = { ...authUser, role: authUser.role || 'user' };
-      publicBooks = [];
+      publicBooks = books.filter(item => item.is_public);
     }
 
     $('authScreen')?.classList.add('hidden');
@@ -243,14 +263,25 @@
         continue;
       }
 
+      const safeId = crypto.randomUUID();
+      const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+      const payload = {
+        id: safeId,
+        name: file.name,
+        title: file.name,
+        owner_email: authUser.email,
+        is_public: false,
+        owner_id: authUser.id,
+        storage_path: null
+      };
+
       if (!remote) {
-        books.push({ name: file.name, title: file.name, owner_email: authUser.email });
+        books.unshift(payload);
         localSave();
         continue;
       }
 
-      const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
-      const path = `${authUser.id}/${crypto.randomUUID()}-${safeName}`;
+      const path = `${authUser.id}/${safeId}-${safeName}`;
       const upload = await sb.storage.from(cfg.storageBucket || 'ebooks').upload(path, file, {
         upsert: false,
         contentType: file.type || 'application/octet-stream'
@@ -267,12 +298,72 @@
       }).select().single();
       if (insert.error) throw insert.error;
 
-      books.unshift(insert.data);
+      books.unshift({ ...insert.data, owner_email: authUser.email });
     }
 
     renderBooks();
     renderStats();
     toast('Upload ebook berhasil.');
+  }
+
+  async function togglePublicBook(book) {
+    if (!book) return;
+    if (!remote) {
+      book.is_public = !book.is_public;
+      if (book.owner_email === authUser.email || authUser.role === 'admin') {
+        localSave();
+        if (book.is_public) publicBooks = [...publicBooks, book];
+        else publicBooks = publicBooks.filter(item => item.id !== book.id);
+        renderBooks();
+        renderPublicReader();
+        toast(book.is_public ? 'Ebook dibuat publik.' : 'Ebook diubah menjadi pribadi.');
+      }
+      return;
+    }
+
+    try {
+      const next = !book.is_public;
+      const { error } = await sb.from('ebooks').update({ is_public: next }).eq('id', book.id);
+      if (error) throw error;
+      book.is_public = next;
+      if (next) publicBooks = [book, ...publicBooks.filter(item => item.id !== book.id)];
+      else publicBooks = publicBooks.filter(item => item.id !== book.id);
+      renderBooks();
+      renderPublicReader();
+      toast(next ? 'Ebook dibuat publik.' : 'Ebook diubah menjadi pribadi.');
+    } catch (error) {
+      toast(error.message || 'Gagal mengubah status publik.', true);
+    }
+  }
+
+  async function deleteBook(book) {
+    if (!book) return;
+    if (!confirm(`Hapus ${book.title || book.name}?`)) return;
+
+    try {
+      if (!remote) {
+        books = books.filter(item => item.id !== book.id);
+        publicBooks = publicBooks.filter(item => item.id !== book.id);
+        localSave();
+        renderBooks();
+        renderPublicReader();
+        toast('Ebook dihapus.');
+        return;
+      }
+
+      if (book.storage_path) {
+        await sb.storage.from(cfg.storageBucket || 'ebooks').remove([book.storage_path]);
+      }
+      const { error } = await sb.from('ebooks').delete().eq('id', book.id);
+      if (error) throw error;
+      books = books.filter(item => item.id !== book.id);
+      publicBooks = publicBooks.filter(item => item.id !== book.id);
+      renderBooks();
+      renderPublicReader();
+      toast('Ebook dihapus.');
+    } catch (error) {
+      toast(error.message || 'Gagal menghapus ebook.', true);
+    }
   }
 
   $('emailForm')?.addEventListener('submit', async e => {
@@ -311,6 +402,7 @@
     profile = null;
     books = [];
     blocks = [];
+    publicBooks = [];
     setReaderUrl('');
     showAuth();
   });
