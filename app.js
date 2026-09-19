@@ -202,6 +202,10 @@
     if (remote) {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      if (data.user && !data.user.email_confirmed_at) {
+        await sb.auth.signOut();
+        throw new Error('Email belum diverifikasi. Klik "Kirim verifikasi email" untuk mengirim ulang konfirmasi.');
+      }
       authUser = data.user;
     } else {
       const found = localUsers[email];
@@ -215,13 +219,20 @@
 
   async function signUp(email, password) {
     if (remote) {
-      const { error } = await sb.auth.signUp({
+      const { data, error } = await sb.auth.signUp({
         email,
         password,
-        options: { data: { name: email.split('@')[0] } }
+        options: {
+          data: { name: email.split('@')[0] },
+          emailRedirectTo: `${location.origin}${location.pathname}`
+        }
       });
       if (error) throw error;
-      toast('Pendaftaran berhasil. Cek email konfirmasi lalu masuk.');
+      if (data?.user && !data.user.email_confirmed_at) {
+        toast('Pendaftaran berhasil. Cek email Anda untuk verifikasi lalu masuk.');
+      } else {
+        toast('Pendaftaran berhasil. Silakan masuk.');
+      }
       return;
     }
 
@@ -230,6 +241,48 @@
     localUsers[email] = { id: crypto.randomUUID(), email, password, name: email.split('@')[0], role };
     localStorage.setItem('bahagia_users', JSON.stringify(localUsers));
     await signIn(email, password);
+  }
+
+  async function sendResetPasswordEmail() {
+    if (!remote) {
+      toast('Reset password hanya tersedia ketika Supabase sudah aktif.', true);
+      return;
+    }
+
+    const input = $('email')?.value || window.prompt('Masukkan email akun Anda:');
+    if (!input) {
+      toast('Email wajib diisi.', true);
+      return;
+    }
+
+    const email = String(input).trim().toLowerCase();
+    if (!email) {
+      toast('Email wajib diisi.', true);
+      return;
+    }
+
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: `${location.origin}${location.pathname}`
+    });
+    if (error) throw error;
+    toast('Link reset password dikirim ke email Anda.');
+  }
+
+  async function sendVerificationEmail() {
+    if (!remote) {
+      toast('Verifikasi email hanya tersedia ketika Supabase sudah aktif.', true);
+      return;
+    }
+
+    const target = (authUser?.email || $('email')?.value || '').trim().toLowerCase();
+    if (!target) {
+      toast('Masukkan email atau login terlebih dahulu.', true);
+      return;
+    }
+
+    const { error } = await sb.auth.resend({ type: 'signup', email: target });
+    if (error) throw error;
+    toast('Email verifikasi berhasil dikirim ulang.');
   }
 
   async function openPublicBook(book) {
@@ -416,6 +469,22 @@
       await signUp($('email').value.trim().toLowerCase(), $('password').value);
     } catch (error) {
       toast(error.message || 'Gagal daftar.', true);
+    }
+  });
+
+  $('forgotPasswordBtn')?.addEventListener('click', async () => {
+    try {
+      await sendResetPasswordEmail();
+    } catch (error) {
+      toast(error.message || 'Gagal mengirim email reset password.', true);
+    }
+  });
+
+  $('verifyEmailBtn')?.addEventListener('click', async () => {
+    try {
+      await sendVerificationEmail();
+    } catch (error) {
+      toast(error.message || 'Gagal mengirim email verifikasi.', true);
     }
   });
 
