@@ -1,16 +1,18 @@
 # Bahagia
 
-## Setup Supabase
-1. Jalankan seluruh isi `supabase-schema.sql` di Supabase SQL Editor.
-2. Aktifkan Email provider; nonaktifkan konfirmasi email hanya untuk testing bila diperlukan.
-3. Isi `config.js` dengan `supabaseUrl` dan **anon/publishable key**. Jangan gunakan `service_role` key.
-4. Pastikan bucket `ebooks` dibuat oleh SQL. File tersimpan private dengan path berdasarkan user ID.
-5. Daftarkan akun, lalu jadikan admin hanya dari SQL Editor:
+## Production setup
+
+1. Run `supabase-schema.sql` in the Supabase SQL Editor.
+2. Run `quality-migration.sql`, then `production-security.sql`.
+3. Put only the Supabase URL and anon/publishable key in `config.js`; never use a service-role key in browser code.
+4. Keep the `ebooks` Storage bucket private. The reader uses short-lived signed URLs.
+5. Configure Auth email/Google providers and production redirect URLs.
+6. Register an account and promote it to admin from SQL:
 
 ```sql
-update public.profiles set role = 'admin' where email = 'admin@contoh.com';
+update public.profiles set role = 'admin' where email = 'your-admin@example.com';
 ```
 
-Admin panel membaca statistik dan pengaturan dari Supabase. Pengguna hanya dapat membaca ebook miliknya atau ebook publik, dan hanya dapat mengunggah ke folder miliknya. Semua pembatasan ditegakkan oleh RLS dan Storage policies, bukan oleh UI.
+RLS and Storage policies enforce ownership on the server. The local mode remains available for demonstrations only and must not be treated as production authentication or persistence.
 
-Tanpa konfigurasi Supabase, mode lokal tetap tersedia untuk demo; mode lokal tidak cocok untuk produksi.
+See `PRODUCTION-CHECKLIST.md` for verification steps.
