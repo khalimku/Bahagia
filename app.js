@@ -13,8 +13,21 @@
   };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  const seedLocalUsers = () => {
+    const defaults = {
+      'admin@bahagia.com': { id: crypto.randomUUID(), email: 'admin@bahagia.com', password: 'Admin123!', name: 'Admin Bahagia', role: 'admin' },
+      'user@bahagia.com': { id: crypto.randomUUID(), email: 'user@bahagia.com', password: 'User123!', name: 'User Bahagia', role: 'user' }
+    };
+    const saved = JSON.parse(localStorage.getItem('bahagia_users') || '{}');
+    const next = { ...defaults, ...saved };
+    if (!saved['admin@bahagia.com']) next['admin@bahagia.com'] = defaults['admin@bahagia.com'];
+    if (!saved['user@bahagia.com']) next['user@bahagia.com'] = defaults['user@bahagia.com'];
+    localStorage.setItem('bahagia_users', JSON.stringify(next));
+    return next;
+  };
+
   let authUser = null, profile = null, books = [], blocks = [], publicBooks = [];
-  const localUsers = JSON.parse(localStorage.getItem('bahagia_users') || '{}');
+  const localUsers = seedLocalUsers();
   const localBooks = () => JSON.parse(localStorage.getItem('bahagia_books') || '[]');
   const localBlocks = () => JSON.parse(localStorage.getItem('bahagia_blocks') || '[]');
   const localSave = () => {
@@ -22,7 +35,7 @@
     localStorage.setItem('bahagia_blocks', JSON.stringify(blocks));
   };
 
-  const isAdmin = () => profile?.role === 'admin';
+  const isAdmin = () => profile?.role === 'admin' || authUser?.role === 'admin';
 
   function showAuth() {
     $('app')?.classList.add('hidden');
@@ -35,7 +48,7 @@
   }
 
   function renderUser() {
-    const name = profile?.name || authUser?.email?.split('@')[0] || 'Pengguna';
+    const name = profile?.name || authUser?.name || authUser?.email?.split('@')[0] || 'Pengguna';
     if ($('userName')) $('userName').textContent = name;
     if ($('userRole')) $('userRole').textContent = isAdmin() ? 'Administrator' : 'Pengguna';
     if ($('avatar')) $('avatar').textContent = name[0].toUpperCase();
@@ -94,7 +107,7 @@
   function renderStats() {
     if ($('statBooks')) $('statBooks').textContent = books.length;
     if ($('statBlocks')) $('statBlocks').textContent = blocks.length;
-    if ($('statReaders')) $('statReaders').textContent = '0';
+    if ($('statReaders')) $('statReaders').textContent = publicBooks.length || 0;
   }
 
   function setReaderUrl(url) {
@@ -145,7 +158,7 @@
 
   async function loadPublicBooks() {
     if (!remote) {
-      publicBooks = [];
+      publicBooks = books.filter(item => item.is_public);
       renderPublicReader();
       return;
     }
@@ -199,31 +212,37 @@
   }
 
   async function signIn(email, password) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '');
+
     if (remote) {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      const { data, error } = await sb.auth.signInWithPassword({ email: normalizedEmail, password: normalizedPassword });
       if (error) throw error;
       if (data.user && !data.user.email_confirmed_at) {
         await sb.auth.signOut();
         throw new Error('Email belum diverifikasi. Klik "Kirim verifikasi email" untuk mengirim ulang konfirmasi.');
       }
-      authUser = data.user;
+      authUser = { ...data.user, role: data.user.role || 'user' };
     } else {
-      const found = localUsers[email];
-      if (!found || found.password !== password) throw new Error('Email atau password salah.');
-      authUser = { ...found, id: found.id || crypto.randomUUID(), email: found.email };
+      const found = localUsers[normalizedEmail];
+      if (!found || found.password !== normalizedPassword) throw new Error('Email atau password salah.');
+      authUser = { ...found, id: found.id || crypto.randomUUID(), email: found.email, role: found.role || 'user' };
       localStorage.setItem('bahagia_session', JSON.stringify(authUser));
     }
     await enterApp();
-    toast('Selamat datang kembali.');
+    toast(`Selamat datang ${authUser.name || authUser.email.split('@')[0]}.`);
   }
 
   async function signUp(email, password) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '');
+
     if (remote) {
       const { data, error } = await sb.auth.signUp({
-        email,
-        password,
+        email: normalizedEmail,
+        password: normalizedPassword,
         options: {
-          data: { name: email.split('@')[0] },
+          data: { name: normalizedEmail.split('@')[0], role: 'user' },
           emailRedirectTo: `${location.origin}${location.pathname}`
         }
       });
@@ -236,11 +255,14 @@
       return;
     }
 
-    if (localUsers[email]) throw new Error('Email sudah terdaftar.');
+    if (localUsers[normalizedEmail]) throw new Error('Email sudah terdaftar.');
     const role = Object.keys(localUsers).length === 0 ? 'admin' : 'user';
-    localUsers[email] = { id: crypto.randomUUID(), email, password, name: email.split('@')[0], role };
+    localUsers[normalizedEmail] = { id: crypto.randomUUID(), email: normalizedEmail, password: normalizedPassword, name: normalizedEmail.split('@')[0], role };
     localStorage.setItem('bahagia_users', JSON.stringify(localUsers));
-    await signIn(email, password);
+    authUser = { ...localUsers[normalizedEmail], role };
+    localStorage.setItem('bahagia_session', JSON.stringify(authUser));
+    await enterApp();
+    toast('Akun baru berhasil dibuat.');
   }
 
   async function sendResetPasswordEmail() {
@@ -401,8 +423,7 @@
       book.is_public = !book.is_public;
       if (book.owner_email === authUser.email || authUser.role === 'admin') {
         localSave();
-        if (book.is_public) publicBooks = [...publicBooks, book];
-        else publicBooks = publicBooks.filter(item => item.id !== book.id);
+        publicBooks = book.is_public ? [...publicBooks.filter(item => item.id !== book.id), book] : publicBooks.filter(item => item.id !== book.id);
         renderBooks();
         renderPublicReader();
         toast(book.is_public ? 'Ebook dibuat publik.' : 'Ebook diubah menjadi pribadi.');
@@ -486,6 +507,18 @@
     } catch (error) {
       toast(error.message || 'Gagal mengirim email verifikasi.', true);
     }
+  });
+
+  $('demoAdminBtn')?.addEventListener('click', () => {
+    $('email').value = 'admin@bahagia.com';
+    $('password').value = 'Admin123!';
+    $('emailForm').requestSubmit();
+  });
+
+  $('demoUserBtn')?.addEventListener('click', () => {
+    $('email').value = 'user@bahagia.com';
+    $('password').value = 'User123!';
+    $('emailForm').requestSubmit();
   });
 
   $('googleBtn')?.addEventListener('click', async () => {
