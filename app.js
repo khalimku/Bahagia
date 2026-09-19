@@ -1,12 +1,19 @@
 /* Webook Bahagia application layer */
 (() => {
-  'use strict';
-
   const cfg = window.BAHAGIA_CONFIG || {};
   const remote = Boolean(cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase);
   const sb = remote ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
   const $ = id => document.getElementById(id);
   const storageBucket = cfg.storageBucket || 'ebooks';
+  const toast = (message, error = false) => {
+    const el = $('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.className = `toast show${error ? ' error' : ''}`;
+    window.clearTimeout(el._hideTimer);
+    el._hideTimer = window.setTimeout(() => { el.className = 'toast'; }, 3500);
+  };
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const safeParseJSON = (key, fallback) => {
     try {
@@ -29,20 +36,7 @@
   };
 
   const normalizeEmail = value => String(value ?? '').trim().toLowerCase();
-  const normalizeUserName = value => String(value ?? '').trim().replace(/\s+/g, ' ');
-
-  const toast = (message, error = false) => {
-    const el = $('toast');
-    if (!el) return;
-    el.textContent = message;
-    el.className = `toast show${error ? ' error' : ''}`;
-    window.clearTimeout(el._hideTimer);
-    el._hideTimer = window.setTimeout(() => {
-      el.className = 'toast';
-    }, 3500);
-  };
-
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const normalizeName = value => String(value ?? '').trim().replace(/\s+/g, ' ');
 
   const acceptedUploadExtensions = new Set(['pdf', 'epub', 'doc', 'docx']);
   const getUploadExtension = name => String(name || '').split('.').pop()?.toLowerCase() || '';
@@ -76,8 +70,7 @@
 
   const syncBookSearch = () => {
     const query = String($('search')?.value || '').trim().toLocaleLowerCase('id-ID');
-    const cards = document.querySelectorAll('#bookGrid .book-card');
-    cards.forEach(card => {
+    document.querySelectorAll('#bookGrid .book-card').forEach(card => {
       const text = (card.textContent || '').toLocaleLowerCase('id-ID');
       card.classList.toggle('search-hidden', Boolean(query) && !text.includes(query));
     });
@@ -201,6 +194,21 @@
     }
     if (placeholder) placeholder.classList.toggle('hidden', Boolean(url));
   }
+
+  const getFileExtension = input => String(input || '').split('?')[0].split('#')[0].split('.').pop()?.toLowerCase() || '';
+  const normalizeOpenedUrl = (bookOrUrl, mimeType = '') => {
+    const raw = String(bookOrUrl || '');
+    const lower = raw.toLowerCase();
+    const extension = getFileExtension(raw) || getFileExtension(mimeType) || '';
+    if (!raw) return '';
+
+    if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt', 'rtf'].includes(extension)) {
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(raw)}`;
+    }
+
+    if (lower.startsWith('http://') || lower.startsWith('https://')) return raw;
+    return raw;
+  };
 
   function openBook(book) {
     if (!book) return;
@@ -406,7 +414,9 @@
         toast('Buku ini belum memiliki file yang bisa dibaca.', true);
         return;
       }
-      setReaderUrl(url);
+
+      const viewerUrl = normalizeOpenedUrl(url, book.mime_type || getUploadExtension(book.title || book.name || book.storage_path || book.public_url));
+      setReaderUrl(viewerUrl || url);
       toast(`Membuka ${book.title || 'ebook'}`);
     } catch (error) {
       toast(error.message || 'Gagal membuka ebook publik.', true);
@@ -417,7 +427,7 @@
     if (!book) return;
     const nextTitle = window.prompt('Masukkan judul baru ebook:', book.title || book.name);
     if (nextTitle === null) return;
-    const title = normalizeUserName(nextTitle);
+    const title = normalizeName(nextTitle);
     if (!title) {
       toast('Judul tidak boleh kosong.', true);
       return;
@@ -453,6 +463,7 @@
       renderFileQueue([]);
       return;
     }
+
     renderFileQueue(validFiles);
 
     for (const file of validFiles) {
@@ -740,4 +751,3 @@
     }
   })();
 })();
-
