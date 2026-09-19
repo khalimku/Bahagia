@@ -5,15 +5,6 @@
   const sb = remote ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
   const $ = id => document.getElementById(id);
   const storageBucket = cfg.storageBucket || 'ebooks';
-  const toast = (message, error = false) => {
-    const el = $('toast');
-    if (!el) return;
-    el.textContent = message;
-    el.className = `toast show${error ? ' error' : ''}`;
-    window.clearTimeout(el._hideTimer);
-    el._hideTimer = window.setTimeout(() => { el.className = 'toast'; }, 3500);
-  };
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const safeParseJSON = (key, fallback) => {
     try {
@@ -34,6 +25,17 @@
       return false;
     }
   };
+
+  const toast = (message, error = false) => {
+    const el = $('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.className = `toast show${error ? ' error' : ''}`;
+    window.clearTimeout(el._hideTimer);
+    el._hideTimer = window.setTimeout(() => { el.className = 'toast'; }, 3500);
+  };
+
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const normalizeEmail = value => String(value ?? '').trim().toLowerCase();
   const normalizeName = value => String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -110,6 +112,13 @@
   };
 
   const isAdmin = () => profile?.role === 'admin' || authUser?.role === 'admin';
+  const requireSignedInUser = () => {
+    if (!authUser?.id) {
+      toast('Silakan masuk kembali.', true);
+      return false;
+    }
+    return true;
+  };
 
   function showAuth() {
     $('app')?.classList.add('hidden');
@@ -196,18 +205,18 @@
   }
 
   const getFileExtension = input => String(input || '').split('?')[0].split('#')[0].split('.').pop()?.toLowerCase() || '';
-  const normalizeOpenedUrl = (bookOrUrl, mimeType = '') => {
-    const raw = String(bookOrUrl || '');
-    const lower = raw.toLowerCase();
-    const extension = getFileExtension(raw) || getFileExtension(mimeType) || '';
-    if (!raw) return '';
+  const getEmbeddedViewerUrl = (rawUrl, mimeType = '') => {
+    const lower = String(rawUrl || '').toLowerCase();
+    const extension = getFileExtension(rawUrl) || getFileExtension(mimeType) || '';
+    if (!rawUrl) return '';
 
-    if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'odt', 'rtf'].includes(extension)) {
-      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(raw)}`;
+    if (extension === 'pdf') return `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(rawUrl)}`;
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf', 'odt'].includes(extension)) {
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
     }
-
-    if (lower.startsWith('http://') || lower.startsWith('https://')) return raw;
-    return raw;
+    if (extension === 'epub') return `https://readium.firebaseapp.com/epub?url=${encodeURIComponent(rawUrl)}`;
+    if (lower.startsWith('http://') || lower.startsWith('https://')) return rawUrl;
+    return rawUrl;
   };
 
   function openBook(book) {
@@ -259,7 +268,7 @@
   }
 
   async function loadRemoteData() {
-    if (!remote) return;
+    if (!remote || !authUser?.id) return;
 
     const { data: bookData, error: booksError } = await sb
       .from('ebooks')
@@ -415,9 +424,11 @@
         return;
       }
 
-      const viewerUrl = normalizeOpenedUrl(url, book.mime_type || getUploadExtension(book.title || book.name || book.storage_path || book.public_url));
+      const viewerUrl = getEmbeddedViewerUrl(url, book.mime_type || getUploadExtension(book.title || book.name || book.storage_path || book.public_url));
+      location.hash = 'reader';
       setReaderUrl(viewerUrl || url);
       toast(`Membuka ${book.title || 'ebook'}`);
+      updateActiveNav();
     } catch (error) {
       toast(error.message || 'Gagal membuka ebook publik.', true);
     }
@@ -485,6 +496,8 @@
         continue;
       }
 
+      if (!requireSignedInUser()) return;
+
       const path = `${authUser.id}/${safeId}-${safeName}`;
       const upload = await sb.storage.from(storageBucket).upload(path, file, {
         upsert: false,
@@ -525,6 +538,7 @@
     }
 
     try {
+      if (!requireSignedInUser()) return;
       const next = !book.is_public;
       const { error } = await sb.from('ebooks').update({ is_public: next }).eq('id', book.id);
       if (error) throw error;
@@ -553,6 +567,8 @@
         toast('Ebook dihapus.');
         return;
       }
+
+      if (!requireSignedInUser()) return;
 
       if (book.storage_path) {
         await sb.storage.from(storageBucket).remove([book.storage_path]);
@@ -605,13 +621,13 @@
   $('demoAdminBtn')?.addEventListener('click', () => {
     $('email').value = 'admin@bahagia.com';
     $('password').value = 'Admin123!';
-    $('emailForm').requestSubmit();
+    $('emailForm')?.requestSubmit();
   });
 
   $('demoUserBtn')?.addEventListener('click', () => {
     $('email').value = 'user@bahagia.com';
     $('password').value = 'User123!';
-    $('emailForm').requestSubmit();
+    $('emailForm')?.requestSubmit();
   });
 
   $('googleBtn')?.addEventListener('click', async () => {
@@ -628,7 +644,7 @@
 
   $('logoutBtn')?.addEventListener('click', async () => {
     try {
-      if (remote) await sb.auth.signOut();
+      if (remote && authUser?.id) await sb.auth.signOut();
     } catch (error) {
       console.warn('[Bahagia] signOut failed:', error);
     }
@@ -672,6 +688,10 @@
 
   document.querySelectorAll('.tool').forEach(button => {
     button.addEventListener('click', () => {
+      if (!authUser?.id && !remote) {
+        toast('Silakan masuk ulang untuk menambah blok.', true);
+        return;
+      }
       blocks.push({ id: crypto.randomUUID(), type: button.dataset.block, createdAt: Date.now() });
       if (!remote) localSave();
       renderStats();
@@ -681,6 +701,9 @@
 
   $('saveBuilder')?.addEventListener('click', async () => {
     try {
+      if (!authUser?.id) {
+        throw new Error('Silakan masuk terlebih dahulu.');
+      }
       if (remote) {
         const { error } = await sb.from('builder_pages').upsert({
           owner_id: authUser.id,
@@ -699,6 +722,7 @@
 
   $('saveSettings')?.addEventListener('click', async () => {
     try {
+      if (!authUser?.id) throw new Error('Silakan masuk terlebih dahulu.');
       if (!isAdmin()) throw new Error('Akses admin diperlukan.');
       const { error } = await sb.from('site_settings').upsert({
         id: 1,
