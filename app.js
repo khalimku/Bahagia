@@ -4,6 +4,8 @@
   const remote = Boolean(cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase);
   const sb = remote ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
   const $ = id => document.getElementById(id);
+  let currentSearch = '';
+
   const toast = (message, error = false) => {
     const el = $('toast');
     if (!el) return;
@@ -11,7 +13,22 @@
     el.className = `toast show${error ? ' error' : ''}`;
     setTimeout(() => { el.className = 'toast'; }, 3500);
   };
+
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const roleLabel = role => (role === 'admin' ? 'Administrator' : 'Pengguna');
+
+  const setButtonLoading = (button, loading, label = '') => {
+    if (!button) return;
+    button.disabled = loading;
+    if (loading) {
+      button.dataset.defaultText = button.textContent || '';
+      button.textContent = label || button.dataset.defaultText;
+      button.classList.add('loading');
+    } else {
+      button.classList.remove('loading');
+      button.textContent = label || button.dataset.defaultText || button.textContent;
+    }
+  };
 
   const seedLocalUsers = () => {
     const defaults = {
@@ -50,7 +67,7 @@
   function renderUser() {
     const name = profile?.name || authUser?.name || authUser?.email?.split('@')[0] || 'Pengguna';
     if ($('userName')) $('userName').textContent = name;
-    if ($('userRole')) $('userRole').textContent = isAdmin() ? 'Administrator' : 'Pengguna';
+    if ($('userRole')) $('userRole').textContent = roleLabel(profile?.role || authUser?.role || 'user');
     if ($('avatar')) $('avatar').textContent = name[0].toUpperCase();
     if (isAdmin()) showAdmin();
     else document.querySelectorAll('.admin-only').forEach(el => el.classList.add('hidden'));
@@ -59,23 +76,35 @@
   function renderBooks() {
     const grid = $('bookGrid');
     if (!grid) return;
-    grid.innerHTML = books.length
-      ? books.map((book, index) => `<article class="book-card">
-          <div class="book-cover">▣</div>
-          <div class="book-info">
-            <h3>${esc(book.title || book.name)}</h3>
-            <small>${esc(book.owner_email || book.email || '')}</small>
-            <div class="book-status">${book.is_public ? 'Publik' : 'Pribadi'}</div>
-            <div class="book-actions">
-              <button class="mini-btn" data-book-action="open" data-book-index="${index}">Buka</button>
-              <button class="mini-btn" data-book-action="edit" data-book-index="${index}">Edit Judul</button>
-              <button class="mini-btn" data-book-action="toggle" data-book-index="${index}">${book.is_public ? 'Jadikan Pribadi' : 'Jadikan Publik'}</button>
-              <button class="mini-btn danger" data-book-action="delete" data-book-index="${index}">Hapus</button>
+
+    const visibleBooks = books.filter(book => {
+      const needle = currentSearch.trim().toLowerCase();
+      if (!needle) return true;
+      const haystack = `${book.title || book.name || ''} ${book.owner_email || book.email || ''}`.toLowerCase();
+      return haystack.includes(needle);
+    });
+
+    grid.innerHTML = visibleBooks.length
+      ? visibleBooks.map((book) => {
+          const actualIndex = books.indexOf(book);
+          return `<article class="book-card">
+            <div class="book-cover">▣</div>
+            <div class="book-info">
+              <h3>${esc(book.title || book.name)}</h3>
+              <small>${esc(book.owner_email || book.email || '')}</small>
+              <div class="book-status">${book.is_public ? 'Publik' : 'Pribadi'}</div>
+              <div class="book-actions">
+                <button class="mini-btn" data-book-action="open" data-book-index="${actualIndex}">Buka</button>
+                <button class="mini-btn" data-book-action="edit" data-book-index="${actualIndex}">Edit Judul</button>
+                <button class="mini-btn" data-book-action="toggle" data-book-index="${actualIndex}">${book.is_public ? 'Jadikan Pribadi' : 'Jadikan Publik'}</button>
+                <button class="mini-btn danger" data-book-action="delete" data-book-index="${actualIndex}">Hapus</button>
+              </div>
             </div>
-          </div>
-        </article>`).join('')
+          </article>`;
+        }).join('')
       : '';
-    $('emptyBooks')?.classList.toggle('hidden', books.length > 0);
+
+    $('emptyBooks')?.classList.toggle('hidden', visibleBooks.length > 0);
     grid.querySelectorAll('[data-book-action]').forEach(button => {
       const index = Number(button.dataset.bookIndex);
       const action = button.dataset.bookAction;
@@ -120,6 +149,86 @@
     if (placeholder) placeholder.classList.toggle('hidden', Boolean(url));
   }
 
+  async function renderAdminUserManagement() {
+    if (!remote || !isAdmin()) return;
+    const adminGrid = document.querySelector('#admin .admin-grid');
+    if (!adminGrid) return;
+    if (adminGrid.querySelector('#adminUserManagement')) return;
+
+    const card = document.createElement('div');
+    card.id = 'adminUserManagement';
+    card.className = 'admin-card admin-users-card';
+    card.innerHTML = `
+      <h3>Kelola Pengguna</h3>
+      <p class="muted">Ubah role pengguna. Validasi keamanan dijaga oleh RLS Supabase.</p>
+      <div id="roleUsersList" class="role-users-list">
+        <span class="muted">Memuat pengguna...</span>
+      </div>
+    `;
+    adminGrid.appendChild(card);
+
+    const container = document.querySelector('#roleUsersList');
+    if (!container) return;
+
+    try {
+      const { data, error } = await sb.from('profiles').select('id,email,name,role,created_at').order('created_at', { ascending: false });
+      if (error) throw error;
+
+      container.innerHTML = (data || []).map(user => {
+        const name = user.name || user.email || 'Pengguna';
+        const disabled = user.id === authUser?.id ? 'disabled' : '';
+        return `
+          <div class="role-user">
+            <div class="role-user-info">
+              <strong>${esc(name)}</strong>
+              <small>${esc(user.email || '')}</small>
+            </div>
+            <select data-role-user="${user.id}" ${disabled}>
+              <option value="user" ${user.role === 'user' ? 'selected' : ''}>Pengguna</option>
+              <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+            </select>
+          </div>
+        `;
+      }).join('') || '<span class="muted">Belum ada pengguna.</span>';
+
+      container.querySelectorAll('select[data-role-user]').forEach(select => {
+        select.addEventListener('change', async (event) => {
+          const userId = event.target.dataset.roleUser;
+          const nextRole = event.target.value;
+          const isSelf = userId === authUser?.id;
+
+          if (isSelf && nextRole !== 'admin') {
+            toast('Admin aktif tidak dapat menurunkan role dirinya sendiri.', true);
+            event.target.value = 'admin';
+            return;
+          }
+
+          event.target.disabled = true;
+          try {
+            const { error: updateError } = await sb.from('profiles').update({ role: nextRole }).eq('id', userId);
+            if (updateError) throw updateError;
+
+            if (isSelf) {
+              profile = { ...profile, role: nextRole };
+              authUser = { ...authUser, role: nextRole };
+              renderUser();
+            }
+
+            toast(`Role berhasil diubah menjadi ${nextRole === 'admin' ? 'Admin' : 'Pengguna'}.`);
+            await renderAdminUserManagement();
+          } catch (error) {
+            toast(error.message || 'Gagal mengubah role pengguna.', true);
+            event.target.disabled = false;
+            await renderAdminUserManagement();
+          }
+        });
+      });
+    } catch (error) {
+      toast(error.message || 'Gagal memuat daftar pengguna.', true);
+      container.innerHTML = '<span class="muted">Tidak dapat memuat pengguna.</span>';
+    }
+  }
+
   function openBook(book) {
     if (!book) return;
     if (book.url) {
@@ -150,10 +259,13 @@
 
     if ($('adminUsers')) $('adminUsers').textContent = users || 0;
     if ($('adminBooks')) $('adminBooks').textContent = ebookCount || 0;
+    if ($('statUsers')) $('statUsers').textContent = users || 0;
     if (settings) {
       if ($('siteName')) $('siteName').value = settings.site_name || '';
       if ($('copyrightEmail')) $('copyrightEmail').value = settings.copyright_email || '';
     }
+
+    await renderAdminUserManagement();
   }
 
   async function loadPublicBooks() {
@@ -478,18 +590,26 @@
 
   $('emailForm')?.addEventListener('submit', async e => {
     e.preventDefault();
+    const submitBtn = $('loginBtn');
+    setButtonLoading(submitBtn, true, 'Memproses...');
     try {
       await signIn($('email').value.trim().toLowerCase(), $('password').value);
     } catch (error) {
       toast(error.message || 'Gagal masuk.', true);
+    } finally {
+      setButtonLoading(submitBtn, false, 'Masuk');
     }
   });
 
   $('signupBtn')?.addEventListener('click', async () => {
+    const signupBtn = $('signupBtn');
+    setButtonLoading(signupBtn, true, 'Mendaftar...');
     try {
       await signUp($('email').value.trim().toLowerCase(), $('password').value);
     } catch (error) {
       toast(error.message || 'Gagal daftar.', true);
+    } finally {
+      setButtonLoading(signupBtn, false, 'Daftar');
     }
   });
 
@@ -616,6 +736,11 @@
 
   $('menuBtn')?.addEventListener('click', () => $('sidebar')?.classList.toggle('open'));
   document.querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.style.display = 'none'; }));
+
+  $('search')?.addEventListener('input', () => {
+    currentSearch = $('search')?.value || '';
+    renderBooks();
+  });
 
   (async () => {
     try {
