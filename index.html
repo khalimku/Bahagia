@@ -99,13 +99,19 @@
 <button class="tool" data-block="video"><b>▶ Video</b><small>Video</small></button>
 <button class="tool" data-block="quiz"><b>☑ Quiz</b><small>Interaksi</small></button>
 </aside>
-<div class="canvas-wrap"><article class="page" id="builderPage"><div class="page-kicker">WEBOOK BAHAGIA · CHAPTER</div><h3 contenteditable="true">Bahagia Tidak Harus Menunggu Sempurna</h3><p contenteditable="true">Bahagia bukan selalu tentang mendapatkan apa yang kita mau. Kadang ia muncul ketika kita belajar menerima apa yang sudah kita punya.</p><div class="block quote-block"><small>QUOTE</small><blockquote contenteditable="true">“Hidup tidak harus sempurna untuk terasa berharga.”</blockquote></div></article></div>
-<aside class="builder-panel"><h3>Pengaturan</h3><label>Judul<input id="builderTitle" value="Bahagia Tidak Harus Menunggu Sempurna"></label><label>Template<select id="template"><option>Premium Cream</option><option>Elegant Gold</option><option>Modern Dark</option></select></label><button id="clearBlocks" class="outline-btn full">Reset Blok</button></aside>
+<div class="canvas-wrap"><article class="page" id="builderPage"><div class="page-kicker">WEBOOK BAHAGIA · CHAPTER</div><h3 contenteditable="true">Bahagia Tidak Harus Menunggu Sempurna</h3><p contenteditable="true">Buat karya lebih hidup dengan latar, kutipan, dan CTA yang mengajak pembaca bergerak.</p></article></div>
+<aside class="builder-panel"><h3>Pengaturan</h3><label>Judul<input id="builderTitle" value="Bahagia Tidak Harus Menunggu Sempurna"></label><label>Template<select id="template"><option>Premium Creative</option><option>Minimal</option><option>Editorial</option></select></label></aside>
 </div>
 </section>
 
 <section id="reader" class="section section-anchor"><div class="section-head"><div><span class="eyebrow">READER</span><h2>Reader</h2></div></div>
-<div class="reader-card"><img src="assets/logo.jpg" alt=""><div><span class="pill dark">WEB READER</span><h2>Webook Bahagia Reader</h2><p>Reader publik dapat dikembangkan dengan daftar isi, bookmark, progress, highlight, audio, quiz dan blok interaktif.</p><button class="gold-btn" id="readerDemo">Preview</button></div></div>
+<div class="reader-layout">
+  <div id="readerList" class="reader-list"></div>
+  <div class="reader-stage">
+    <div id="readerPlaceholder" class="reader-placeholder">Pilih ebook publik untuk dibaca.</div>
+    <iframe id="readerFrame" class="reader-frame hidden" title="Reader ebook" loading="lazy"></iframe>
+  </div>
+</div>
 </section>
 
 <section id="admin" class="section section-anchor admin-section hidden">
@@ -113,7 +119,7 @@
 <div class="admin-grid">
 <div class="admin-card"><h3>Branding</h3><label>Nama website<input id="siteName"></label><label>Email copyright<input id="copyrightEmail"></label><button class="gold-btn" id="saveSettings">Simpan Pengaturan</button></div>
 <div class="admin-card"><h3>Statistik Platform</h3><div class="admin-stat"><b id="adminUsers">0</b><span>Pengguna</span></div><div class="admin-stat"><b id="adminBooks">0</b><span>Ebook publik</span></div></div>
-<div class="admin-card"><h3>Kontrol</h3><button class="outline-btn full" id="refreshAdmin">Refresh Data</button><p class="muted">Role admin ditentukan di database. Jangan pernah menaruh password atau service-role key di frontend.</p></div>
+<div class="admin-card"><h3>Kontrol</h3><button class="outline-btn full" id="refreshAdmin">Refresh Data</button><p class="muted">Role admin ditentukan di database. Jangan pernah menaruh password di frontend.</p></div>
 </div>
 </section>
 </div>
