@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Webook Bahagia</title>
+<meta name="description" content="Webook Bahagia — platform ebook interaktif.">
+<link rel="icon" href="assets/logo.jpg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="toast" class="toast"></div>
+
+<!-- AUTH -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <img src="assets/logo.jpg" class="auth-logo" alt="Webook Bahagia">
+    <span class="eyebrow">WEBOOK BAHAGIA</span>
+    <h1>Ruang karya yang lebih hidup.</h1>
+    <p>Masuk untuk membaca, mengunggah, dan membuat ebook interaktif.</p>
+
+    <button id="googleBtn" class="google-btn">G <span>Lanjutkan dengan Google</span></button>
+    <div class="or"><span>atau</span></div>
+
+    <form id="emailForm">
+      <label>Email<input id="email" type="email" required placeholder="nama@email.com"></label>
+      <label>Password<input id="password" type="password" required minlength="6" placeholder="Minimal 6 karakter"></label>
+      <div class="auth-actions">
+        <button class="gold-btn" type="submit" id="loginBtn">Masuk</button>
+        <button class="outline-btn" type="button" id="signupBtn">Daftar</button>
+      </div>
+    </form>
+    <small class="auth-note">Login Google memerlukan Google Provider yang diaktifkan di Supabase.</small>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="app hidden">
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <img src="assets/logo.jpg" alt="Logo">
+    <div><strong>Webook Bahagia</strong><small>Digital Reading Studio</small></div>
+  </div>
+  <nav>
+    <a class="nav-link active" href="#dashboard">⌂ <span>Dashboard</span></a>
+    <a class="nav-link" href="#ebooks">▣ <span>Koleksi Ebook</span></a>
+    <a class="nav-link" href="#upload">↑ <span>Upload Ebook</span></a>
+    <a class="nav-link" href="#builder">◇ <span>Interactive Builder</span></a>
+    <a class="nav-link" href="#reader">◉ <span>Reader</span></a>
+    <a class="nav-link admin-only hidden" href="#admin">⚙ <span>Admin Panel</span></a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="owner-mini"><div class="owner-dot" id="avatar">U</div><div><strong id="userName">User</strong><small id="userRole">Pengguna</small></div></div>
+    <button id="logoutBtn" class="logout">Keluar</button>
+  </div>
+</aside>
+
+<main class="main">
+<header class="topbar">
+  <button class="icon-btn mobile-only" id="menuBtn">☰</button>
+  <div><div class="eyebrow">WEBOOK BAHAGIA</div><h2 id="pageTitle">Dashboard</h2></div>
+  <div class="top-actions"><input id="search" class="search" placeholder="Cari ebook..."><button class="gold-btn" id="quickUpload">+ Upload</button></div>
+</header>
+
+<div class="content">
+<section id="dashboard" class="hero section-anchor">
+  <div><span class="pill">PREMIUM DIGITAL WORKSPACE</span><h1>Tempat karya digital<br><em>menjadi pengalaman.</em></h1><p>Kelola ebook dan bangun pengalaman membaca interaktif dari satu ruang.</p>
+  <div class="hero-actions"><button class="gold-btn" id="heroUpload">Upload Ebook</button><a class="ghost-btn" href="#builder">Buat Interaktif</a></div></div>
+  <div class="hero-art"><div class="orbit"></div><img src="assets/logo.jpg" alt="" class="hero-logo"></div>
+</section>
+
+<section class="stats">
+<article><span>▣</span><strong id="statBooks">0</strong><small>Ebook Anda</small></article>
+<article><span>◇</span><strong id="statBlocks">0</strong><small>Blok Interaktif</small></article>
+<article><span>◉</span><strong id="statReaders">0</strong><small>Total Pembaca</small></article>
+<article><span>♟</span><strong id="statUsers">—</strong><small>Total Pengguna</small></article>
+</section>
+
+<section id="ebooks" class="section section-anchor">
+<div class="section-head"><div><span class="eyebrow">LIBRARY</span><h2>Koleksi Ebook</h2></div><button class="outline-btn" id="addBookBtn">+ Tambah</button></div>
+<div id="bookGrid" class="book-grid"></div><div id="emptyBooks" class="empty hidden">Belum ada ebook.</div>
+</section>
+
+<section id="upload" class="section section-anchor">
+<div class="section-head"><div><span class="eyebrow">IMPORT</span><h2>Upload Ebook</h2><p>PDF, EPUB, DOC, DOCX — file masuk ke storage akun Anda.</p></div></div>
+<label class="dropzone" for="fileInput"><div class="upload-symbol">↑</div><strong>Tarik file ke sini atau klik</strong><span>Maksimal 25 MB per file</span></label>
+<input id="fileInput" type="file" accept=".pdf,.epub,.doc,.docx" multiple hidden>
+<div id="fileQueue" class="file-queue"></div>
+</section>
+
+<section id="builder" class="section section-anchor">
+<div class="section-head"><div><span class="eyebrow">CREATOR</span><h2>Interactive Builder</h2></div><button class="gold-btn" id="saveBuilder">Simpan</button></div>
+<div class="builder">
+<aside class="builder-panel"><h3>Tambah Blok</h3>
+<button class="tool" data-block="text"><b>📝 Teks</b><small>Paragraf editable</small></button>
+<button class="tool" data-block="quote"><b>❝ Quote</b><small>Kutipan premium</small></button>
+<button class="tool" data-block="button"><b>🔘 Tombol</b><small>CTA pembaca</small></button>
+<button class="tool" data-block="image"><b>🖼 Gambar</b><small>Visual</small></button>
+<button class="tool" data-block="video"><b>▶ Video</b><small>Video</small></button>
+<button class="tool" data-block="quiz"><b>☑ Quiz</b><small>Interaksi</small></button>
+</aside>
+<div class="canvas-wrap"><article class="page" id="builderPage"><div class="page-kicker">WEBOOK BAHAGIA · CHAPTER</div><h3 contenteditable="true">Bahagia Tidak Harus Menunggu Sempurna</h3><p contenteditable="true">Bahagia bukan selalu tentang mendapatkan apa yang kita mau. Kadang ia muncul ketika kita belajar menerima apa yang sudah kita punya.</p><div class="block quote-block"><small>QUOTE</small><blockquote contenteditable="true">“Hidup tidak harus sempurna untuk terasa berharga.”</blockquote></div></article></div>
+<aside class="builder-panel"><h3>Pengaturan</h3><label>Judul<input id="builderTitle" value="Bahagia Tidak Harus Menunggu Sempurna"></label><label>Template<select id="template"><option>Premium Cream</option><option>Elegant Gold</option><option>Modern Dark</option></select></label><button id="clearBlocks" class="outline-btn full">Reset Blok</button></aside>
+</div>
+</section>
+
+<section id="reader" class="section section-anchor"><div class="section-head"><div><span class="eyebrow">READER</span><h2>Reader</h2></div></div>
+<div class="reader-card"><img src="assets/logo.jpg" alt=""><div><span class="pill dark">WEB READER</span><h2>Webook Bahagia Reader</h2><p>Reader publik dapat dikembangkan dengan daftar isi, bookmark, progress, highlight, audio, quiz dan blok interaktif.</p><button class="gold-btn" id="readerDemo">Preview</button></div></div>
+</section>
+
+<section id="admin" class="section section-anchor admin-section hidden">
+<div class="section-head"><div><span class="eyebrow">OWNER</span><h2>Admin Panel</h2><p>Hanya akun dengan role admin yang dapat melihat panel ini.</p></div></div>
+<div class="admin-grid">
+<div class="admin-card"><h3>Branding</h3><label>Nama website<input id="siteName"></label><label>Email copyright<input id="copyrightEmail"></label><button class="gold-btn" id="saveSettings">Simpan Pengaturan</button></div>
+<div class="admin-card"><h3>Statistik Platform</h3><div class="admin-stat"><b id="adminUsers">0</b><span>Pengguna</span></div><div class="admin-stat"><b id="adminBooks">0</b><span>Ebook publik</span></div></div>
+<div class="admin-card"><h3>Kontrol</h3><button class="outline-btn full" id="refreshAdmin">Refresh Data</button><p class="muted">Role admin ditentukan di database. Jangan pernah menaruh password atau service-role key di frontend.</p></div>
+</div>
+</section>
+</div>
+
+<footer><span>Webook Bahagia · © 2026 BONTEKU1</span><a href="mailto:bonteku1@gmail.com">bonteku1@gmail.com</a></footer>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
