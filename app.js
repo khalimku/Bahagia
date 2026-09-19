@@ -1,38 +1,119 @@
 /* Webook Bahagia application layer */
 (() => {
+  'use strict';
+
   const cfg = window.BAHAGIA_CONFIG || {};
   const remote = Boolean(cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase);
   const sb = remote ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
   const $ = id => document.getElementById(id);
+  const storageBucket = cfg.storageBucket || 'ebooks';
+
+  const safeParseJSON = (key, fallback) => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (error) {
+      console.warn('[Bahagia] localStorage parse failed:', key, error);
+      return fallback;
+    }
+  };
+
+  const safeStoreJSON = (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      console.warn('[Bahagia] localStorage save failed:', key, error);
+      return false;
+    }
+  };
+
+  const normalizeEmail = value => String(value ?? '').trim().toLowerCase();
+  const normalizeUserName = value => String(value ?? '').trim().replace(/\s+/g, ' ');
+
   const toast = (message, error = false) => {
     const el = $('toast');
     if (!el) return;
     el.textContent = message;
     el.className = `toast show${error ? ' error' : ''}`;
-    setTimeout(() => { el.className = 'toast'; }, 3500);
+    window.clearTimeout(el._hideTimer);
+    el._hideTimer = window.setTimeout(() => {
+      el.className = 'toast';
+    }, 3500);
   };
+
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const acceptedUploadExtensions = new Set(['pdf', 'epub', 'doc', 'docx']);
+  const getUploadExtension = name => String(name || '').split('.').pop()?.toLowerCase() || '';
+  const validateUploadFiles = files => [...files].filter(file => {
+    const extension = getUploadExtension(file.name);
+    if (!acceptedUploadExtensions.has(extension)) {
+      toast(`${file.name}: format tidak didukung. Gunakan PDF, EPUB, DOC, atau DOCX.`, true);
+      return false;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      toast(`${file.name} melebihi batas 25 MB.`, true);
+      return false;
+    }
+    return true;
+  });
+
+  const renderFileQueue = (files = []) => {
+    const queue = $('fileQueue');
+    if (!queue) return;
+    if (!files.length) {
+      queue.innerHTML = '';
+      return;
+    }
+    queue.innerHTML = files.map(file => `
+      <div class="queue-item">
+        <span>${esc(file.name)}</span>
+        <small>${(file.size / (1024 * 1024)).toFixed(1)} MB</small>
+      </div>
+    `).join('');
+  };
+
+  const syncBookSearch = () => {
+    const query = String($('search')?.value || '').trim().toLocaleLowerCase('id-ID');
+    const cards = document.querySelectorAll('#bookGrid .book-card');
+    cards.forEach(card => {
+      const text = (card.textContent || '').toLocaleLowerCase('id-ID');
+      card.classList.toggle('search-hidden', Boolean(query) && !text.includes(query));
+    });
+  };
+
+  const updateActiveNav = () => {
+    const current = location.hash.replace('#', '') || 'dashboard';
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === `#${current}`);
+    });
+    const section = document.getElementById(current);
+    const heading = section?.querySelector('h1, h2');
+    if (heading && $('pageTitle')) $('pageTitle').textContent = heading.textContent.trim();
+    $('sidebar')?.classList.remove('open');
+  };
 
   const seedLocalUsers = () => {
     const defaults = {
       'admin@bahagia.com': { id: crypto.randomUUID(), email: 'admin@bahagia.com', password: 'Admin123!', name: 'Admin Bahagia', role: 'admin' },
       'user@bahagia.com': { id: crypto.randomUUID(), email: 'user@bahagia.com', password: 'User123!', name: 'User Bahagia', role: 'user' }
     };
-    const saved = JSON.parse(localStorage.getItem('bahagia_users') || '{}');
+    const saved = safeParseJSON('bahagia_users', {});
     const next = { ...defaults, ...saved };
-    if (!saved['admin@bahagia.com']) next['admin@bahagia.com'] = defaults['admin@bahagia.com'];
-    if (!saved['user@bahagia.com']) next['user@bahagia.com'] = defaults['user@bahagia.com'];
-    localStorage.setItem('bahagia_users', JSON.stringify(next));
+    if (!Object.prototype.hasOwnProperty.call(saved, 'admin@bahagia.com')) next['admin@bahagia.com'] = defaults['admin@bahagia.com'];
+    if (!Object.prototype.hasOwnProperty.call(saved, 'user@bahagia.com')) next['user@bahagia.com'] = defaults['user@bahagia.com'];
+    safeStoreJSON('bahagia_users', next);
     return next;
   };
 
   let authUser = null, profile = null, books = [], blocks = [], publicBooks = [];
   const localUsers = seedLocalUsers();
-  const localBooks = () => JSON.parse(localStorage.getItem('bahagia_books') || '[]');
-  const localBlocks = () => JSON.parse(localStorage.getItem('bahagia_blocks') || '[]');
+  const localBooks = () => safeParseJSON('bahagia_books', []);
+  const localBlocks = () => safeParseJSON('bahagia_blocks', []);
   const localSave = () => {
-    localStorage.setItem('bahagia_books', JSON.stringify(books));
-    localStorage.setItem('bahagia_blocks', JSON.stringify(blocks));
+    safeStoreJSON('bahagia_books', books);
+    safeStoreJSON('bahagia_blocks', blocks);
   };
 
   const isAdmin = () => profile?.role === 'admin' || authUser?.role === 'admin';
@@ -63,7 +144,7 @@
       ? books.map((book, index) => `<article class="book-card">
           <div class="book-cover">▣</div>
           <div class="book-info">
-            <h3>${esc(book.title || book.name)}</h3>
+            <h3>${esc(book.title || book.name || 'Judul ebook')}</h3>
             <small>${esc(book.owner_email || book.email || '')}</small>
             <div class="book-status">${book.is_public ? 'Publik' : 'Pribadi'}</div>
             <div class="book-actions">
@@ -76,6 +157,7 @@
         </article>`).join('')
       : '';
     $('emptyBooks')?.classList.toggle('hidden', books.length > 0);
+    syncBookSearch();
     grid.querySelectorAll('[data-book-action]').forEach(button => {
       const index = Number(button.dataset.bookIndex);
       const action = button.dataset.bookAction;
@@ -94,7 +176,7 @@
     const list = $('readerList');
     if (!list) return;
     list.innerHTML = publicBooks.length
-      ? publicBooks.map(book => `<button class="reader-item" data-book-id="${book.id}"><div class="reader-cover">📚</div><div><strong>${esc(book.title || 'Judul ebook')}</strong><small>${book.is_public ? 'Publik' : 'Pribadi'}</small></div></button>`).join('')
+      ? publicBooks.map(book => `<button class="reader-item" data-book-id="${book.id}"><div class="reader-cover">📚</div><div><strong>${esc(book.title || 'Judul ebook')}</strong><small>${esc(book.owner_email || '')}</small></div></button>`).join('')
       : '<p class="muted">Belum ada ebook publik.</p>';
     list.querySelectorAll('[data-book-id]').forEach(button => {
       button.onclick = async () => {
@@ -134,7 +216,7 @@
   }
 
   async function loadProfile() {
-    if (!remote) return;
+    if (!remote || !authUser?.id) return;
     const { data, error } = await sb.from('profiles').select('id,email,name,role').eq('id', authUser.id).single();
     if (error) throw error;
     profile = data;
@@ -186,7 +268,7 @@
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!builderError && builderData?.blocks) blocks = builderData.blocks;
+    if (!builderError && Array.isArray(builderData?.blocks)) blocks = builderData.blocks;
 
     await loadPublicBooks();
     await loadAdmin();
@@ -212,7 +294,7 @@
   }
 
   async function signIn(email, password) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const normalizedPassword = String(password || '');
 
     if (remote) {
@@ -227,14 +309,14 @@
       const found = localUsers[normalizedEmail];
       if (!found || found.password !== normalizedPassword) throw new Error('Email atau password salah.');
       authUser = { ...found, id: found.id || crypto.randomUUID(), email: found.email, role: found.role || 'user' };
-      localStorage.setItem('bahagia_session', JSON.stringify(authUser));
+      safeStoreJSON('bahagia_session', authUser);
     }
     await enterApp();
     toast(`Selamat datang ${authUser.name || authUser.email.split('@')[0]}.`);
   }
 
   async function signUp(email, password) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const normalizedPassword = String(password || '');
 
     if (remote) {
@@ -258,9 +340,9 @@
     if (localUsers[normalizedEmail]) throw new Error('Email sudah terdaftar.');
     const role = Object.keys(localUsers).length === 0 ? 'admin' : 'user';
     localUsers[normalizedEmail] = { id: crypto.randomUUID(), email: normalizedEmail, password: normalizedPassword, name: normalizedEmail.split('@')[0], role };
-    localStorage.setItem('bahagia_users', JSON.stringify(localUsers));
+    safeStoreJSON('bahagia_users', localUsers);
     authUser = { ...localUsers[normalizedEmail], role };
-    localStorage.setItem('bahagia_session', JSON.stringify(authUser));
+    safeStoreJSON('bahagia_session', authUser);
     await enterApp();
     toast('Akun baru berhasil dibuat.');
   }
@@ -277,15 +359,13 @@
       return;
     }
 
-    const email = String(input).trim().toLowerCase();
+    const email = normalizeEmail(input);
     if (!email) {
       toast('Email wajib diisi.', true);
       return;
     }
 
-    const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: `${location.origin}${location.pathname}`
-    });
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}${location.pathname}` });
     if (error) throw error;
     toast('Link reset password dikirim ke email Anda.');
   }
@@ -296,7 +376,7 @@
       return;
     }
 
-    const target = (authUser?.email || $('email')?.value || '').trim().toLowerCase();
+    const target = normalizeEmail(authUser?.email || $('email')?.value || '');
     if (!target) {
       toast('Masukkan email atau login terlebih dahulu.', true);
       return;
@@ -317,7 +397,7 @@
     try {
       let url = '';
       if (book.storage_path) {
-        const { data, error } = await sb.storage.from(cfg.storageBucket || 'ebooks').createSignedUrl(book.storage_path, 3600);
+        const { data, error } = await sb.storage.from(storageBucket).createSignedUrl(book.storage_path, 3600);
         if (error) throw error;
         url = data?.signedUrl || '';
       }
@@ -335,9 +415,9 @@
 
   async function editBook(book) {
     if (!book) return;
-    const nextTitle = prompt('Masukkan judul baru ebook:', book.title || book.name);
+    const nextTitle = window.prompt('Masukkan judul baru ebook:', book.title || book.name);
     if (nextTitle === null) return;
-    const title = nextTitle.trim();
+    const title = normalizeUserName(nextTitle);
     if (!title) {
       toast('Judul tidak boleh kosong.', true);
       return;
@@ -368,21 +448,23 @@
   }
 
   async function uploadFiles(files) {
-    for (const file of [...files]) {
-      if (file.size > 25 * 1024 * 1024) {
-        toast(`${file.name} melebihi 25 MB.`, true);
-        continue;
-      }
+    const validFiles = validateUploadFiles(files || []);
+    if (!validFiles.length) {
+      renderFileQueue([]);
+      return;
+    }
+    renderFileQueue(validFiles);
 
+    for (const file of validFiles) {
       const safeId = crypto.randomUUID();
       const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
       const payload = {
         id: safeId,
         name: file.name,
         title: file.name,
-        owner_email: authUser.email,
+        owner_email: authUser?.email || '',
         is_public: false,
-        owner_id: authUser.id,
+        owner_id: authUser?.id || null,
         storage_path: null
       };
 
@@ -393,7 +475,7 @@
       }
 
       const path = `${authUser.id}/${safeId}-${safeName}`;
-      const upload = await sb.storage.from(cfg.storageBucket || 'ebooks').upload(path, file, {
+      const upload = await sb.storage.from(storageBucket).upload(path, file, {
         upsert: false,
         contentType: file.type || 'application/octet-stream'
       });
@@ -414,20 +496,20 @@
 
     renderBooks();
     renderStats();
+    renderFileQueue([]);
     toast('Upload ebook berhasil.');
   }
 
   async function togglePublicBook(book) {
     if (!book) return;
     if (!remote) {
+      if (!authUser || (book.owner_email !== authUser.email && authUser.role !== 'admin')) return;
       book.is_public = !book.is_public;
-      if (book.owner_email === authUser.email || authUser.role === 'admin') {
-        localSave();
-        publicBooks = book.is_public ? [...publicBooks.filter(item => item.id !== book.id), book] : publicBooks.filter(item => item.id !== book.id);
-        renderBooks();
-        renderPublicReader();
-        toast(book.is_public ? 'Ebook dibuat publik.' : 'Ebook diubah menjadi pribadi.');
-      }
+      localSave();
+      publicBooks = book.is_public ? [...publicBooks.filter(item => item.id !== book.id), book] : publicBooks.filter(item => item.id !== book.id);
+      renderBooks();
+      renderPublicReader();
+      toast(book.is_public ? 'Ebook dibuat publik.' : 'Ebook diubah menjadi pribadi.');
       return;
     }
 
@@ -448,7 +530,7 @@
 
   async function deleteBook(book) {
     if (!book) return;
-    if (!confirm(`Hapus ${book.title || book.name}?`)) return;
+    if (!window.confirm(`Hapus ${book.title || book.name}?`)) return;
 
     try {
       if (!remote) {
@@ -462,7 +544,7 @@
       }
 
       if (book.storage_path) {
-        await sb.storage.from(cfg.storageBucket || 'ebooks').remove([book.storage_path]);
+        await sb.storage.from(storageBucket).remove([book.storage_path]);
       }
       const { error } = await sb.from('ebooks').delete().eq('id', book.id);
       if (error) throw error;
@@ -534,7 +616,11 @@
   });
 
   $('logoutBtn')?.addEventListener('click', async () => {
-    if (remote) await sb.auth.signOut();
+    try {
+      if (remote) await sb.auth.signOut();
+    } catch (error) {
+      console.warn('[Bahagia] signOut failed:', error);
+    }
     localStorage.removeItem('bahagia_session');
     authUser = null;
     profile = null;
@@ -542,15 +628,27 @@
     blocks = [];
     publicBooks = [];
     setReaderUrl('');
+    renderBooks();
+    renderPublicReader();
+    renderStats();
     showAuth();
   });
 
   $('fileInput')?.addEventListener('change', async e => {
     try {
-      await uploadFiles(e.target.files);
+      const selected = validateUploadFiles(e.target.files || []);
+      if (!selected.length) {
+        e.target.value = '';
+        renderFileQueue([]);
+        return;
+      }
+      await uploadFiles(selected);
       e.target.value = '';
+      renderFileQueue([]);
     } catch (error) {
       toast(error.message || 'Upload gagal.', true);
+      e.target.value = '';
+      renderFileQueue([]);
     }
   });
 
@@ -563,7 +661,7 @@
 
   document.querySelectorAll('.tool').forEach(button => {
     button.addEventListener('click', () => {
-      blocks.push({ type: button.dataset.block, createdAt: Date.now() });
+      blocks.push({ id: crypto.randomUUID(), type: button.dataset.block, createdAt: Date.now() });
       if (!remote) localSave();
       renderStats();
       toast('Blok ditambahkan.');
@@ -616,6 +714,12 @@
 
   $('menuBtn')?.addEventListener('click', () => $('sidebar')?.classList.toggle('open'));
   document.querySelectorAll('img').forEach(img => img.addEventListener('error', () => { img.style.display = 'none'; }));
+  $('search')?.addEventListener('input', syncBookSearch);
+  window.addEventListener('hashchange', updateActiveNav);
+  window.addEventListener('unhandledrejection', event => {
+    const reason = event.reason;
+    if (reason) toast(reason.message || 'Terjadi kesalahan. Silakan coba lagi.', true);
+  });
 
   (async () => {
     try {
@@ -625,13 +729,15 @@
         authUser = data.session.user;
         await enterApp();
       } else {
-        authUser = JSON.parse(localStorage.getItem('bahagia_session') || 'null');
+        authUser = safeParseJSON('bahagia_session', null);
         if (!authUser) return showAuth();
         await enterApp();
       }
+      updateActiveNav();
     } catch (error) {
       showAuth();
       toast(error.message || 'Session gagal dimuat.', true);
     }
   })();
 })();
+

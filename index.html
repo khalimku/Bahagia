@@ -108,8 +108,8 @@
 <button class="tool" data-block="video"><b>▶ Video</b><small>Video</small></button>
 <button class="tool" data-block="quiz"><b>☑ Quiz</b><small>Interaksi</small></button>
 </aside>
-<div class="canvas-wrap"><article class="page" id="builderPage"><div class="page-kicker">WEBOOK BAHAGIA · CHAPTER</div><h3 contenteditable="true">Bahagia Tidak Harus Menunggu Sempurna</h3><p contenteditable="true">Buat karya lebih hidup dengan latar, kutipan, dan CTA yang mengajak pembaca bergerak.</p></article></div>
-<aside class="builder-panel"><h3>Pengaturan</h3><label>Judul<input id="builderTitle" value="Bahagia Tidak Harus Menunggu Sempurna"></label><label>Template<select id="template"><option>Premium Creative</option><option>Minimal</option><option>Editorial</option></select></label></aside>
+<div class="canvas-wrap"><article class="page" id="builderPage"><div class="page-kicker">WEBOOK BAHAGIA · CHAPTER</div><h3 contenteditable="true">Bahagia Tidak Harus Menunggu Sempurna</h3><p contenteditable="true">Karya paling berharga sering lahir ketika kita berhenti menunggu sempurna.</p><button class="gold-btn" type="button">Lanjutkan</button></article></div>
+<aside class="builder-panel"><h3>Pengaturan</h3><label>Judul<input id="builderTitle" value="Bahagia Tidak Harus Menunggu Sempurna"></label><label>Template<select id="template"><option>Premium Creator</option><option>Minimal</option><option>Studio</option></select></label></aside>
 </div>
 </section>
 
@@ -126,9 +126,9 @@
 <section id="admin" class="section section-anchor admin-section hidden">
 <div class="section-head"><div><span class="eyebrow">OWNER</span><h2>Admin Panel</h2><p>Hanya akun dengan role admin yang dapat melihat panel ini.</p></div></div>
 <div class="admin-grid">
-<div class="admin-card"><h3>Branding</h3><label>Nama website<input id="siteName"></label><label>Email copyright<input id="copyrightEmail"></label><button class="gold-btn" id="saveSettings">Simpan Pengaturan</button></div>
+<div class="admin-card"><h3>Branding</h3><label>Nama website<input id="siteName"></label><label>Email copyright<input id="copyrightEmail"></label><button class="gold-btn" id="saveSettings">Simpan</button></div>
 <div class="admin-card"><h3>Statistik Platform</h3><div class="admin-stat"><b id="adminUsers">0</b><span>Pengguna</span></div><div class="admin-stat"><b id="adminBooks">0</b><span>Ebook publik</span></div></div>
-<div class="admin-card"><h3>Kontrol</h3><button class="outline-btn full" id="refreshAdmin">Refresh Data</button><p class="muted">Role admin ditentukan di database. Jangan pernah menaruh password di frontend.</p></div>
+<div class="admin-card"><h3>Kontrol</h3><button class="outline-btn full" id="refreshAdmin">Refresh Data</button><p class="muted">Role admin ditentukan di database. Jangan pernah menaruh password atau token di frontend.</p></div>
 </div>
 </section>
 </div>
@@ -140,5 +140,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="app-quality.js"></script>
 </body>
 </html>
+
