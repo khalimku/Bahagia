@@ -4,3 +4,9 @@ window.BAHAGIA_CONFIG = {
   supabaseAnonKey: '',
   storageBucket: 'ebooks'
 };
+
+// Load the role-management module without requiring changes to the HTML shell.
+const roleScript = document.createElement('script');
+roleScript.src = 'admin-roles.js';
+roleScript.defer = true;
+document.head.appendChild(roleScript);
