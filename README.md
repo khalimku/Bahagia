@@ -1,10 +1,16 @@
 # Bahagia
-Studio Bahagia energi tanpa batas.
 
-## Menjalankan
-1. Buka `config.js`, isi `supabaseUrl` dan `supabaseAnonKey` dari Supabase (gunakan anon key saja).
-2. Jalankan `supabase-schema.sql` di Supabase SQL Editor.
-3. Aktifkan Email provider di Authentication. Google dapat diaktifkan setelah OAuth callback disiapkan.
-4. Deploy seluruh file, termasuk `app.js` dan `config.js`.
+## Setup Supabase
+1. Jalankan seluruh isi `supabase-schema.sql` di Supabase SQL Editor.
+2. Aktifkan Email provider; nonaktifkan konfirmasi email hanya untuk testing bila diperlukan.
+3. Isi `config.js` dengan `supabaseUrl` dan **anon/publishable key**. Jangan gunakan `service_role` key.
+4. Pastikan bucket `ebooks` dibuat oleh SQL. File tersimpan private dengan path berdasarkan user ID.
+5. Daftarkan akun, lalu jadikan admin hanya dari SQL Editor:
 
-Tanpa konfigurasi Supabase, aplikasi berjalan dalam **mode lokal** agar admin dan pengguna tetap dapat mencoba alur masuk, daftar, upload, dan builder. Akun pertama otomatis menjadi admin; mode ini hanya untuk demo dan datanya tersimpan di browser.
+```sql
+update public.profiles set role = 'admin' where email = 'admin@contoh.com';
+```
+
+Admin panel membaca statistik dan pengaturan dari Supabase. Pengguna hanya dapat membaca ebook miliknya atau ebook publik, dan hanya dapat mengunggah ke folder miliknya. Semua pembatasan ditegakkan oleh RLS dan Storage policies, bukan oleh UI.
+
+Tanpa konfigurasi Supabase, mode lokal tetap tersedia untuk demo; mode lokal tidak cocok untuk produksi.

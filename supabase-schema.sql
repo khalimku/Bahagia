@@ -1,15 +1,22 @@
--- Webook Bahagia: run this in Supabase SQL Editor before production use.
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text, name text, role text not null default 'user' check (role in ('user','admin')),
-  created_at timestamptz not null default now()
-);
-create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
-begin insert into public.profiles (id,email,name) values (new.id,new.email,coalesce(new.raw_user_meta_data->>'name',split_part(new.email,'@',1))); return new; end; $$;
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
-alter table public.profiles enable row level security;
-drop policy if exists "Users can read own profile" on public.profiles;
-create policy "Users can read own profile" on public.profiles for select using (auth.uid() = id);
-drop policy if exists "Admins can read profiles" on public.profiles;
-create policy "Admins can read profiles" on public.profiles for select using (exists (select 1 from public.profiles p where p.id=auth.uid() and p.role='admin'));
+-- Run once in Supabase SQL Editor. The browser uses only the anon key.
+create table if not exists public.profiles (id uuid primary key references auth.users(id) on delete cascade, email text, name text, role text not null default 'user' check (role in ('user','admin')), created_at timestamptz not null default now());
+create table if not exists public.ebooks (id uuid primary key default gen_random_uuid(), owner_id uuid not null references auth.users(id) on delete cascade, title text not null, storage_path text not null unique, mime_type text, size_bytes bigint, is_public boolean not null default false, created_at timestamptz not null default now());
+create table if not exists public.builder_pages (id uuid primary key default gen_random_uuid(), owner_id uuid not null unique references auth.users(id) on delete cascade, title text not null default 'Untitled', blocks jsonb not null default '[]'::jsonb, updated_at timestamptz not null default now());
+create table if not exists public.site_settings (id integer primary key default 1 check (id = 1), site_name text not null default 'Webook Bahagia', copyright_email text, updated_by uuid references auth.users(id), updated_at timestamptz not null default now());
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$ begin insert into public.profiles(id,email,name) values(new.id,new.email,coalesce(new.raw_user_meta_data->>'name',split_part(new.email,'@',1))) on conflict (id) do nothing; return new; end; $$;
+drop trigger if exists on_auth_user_created on auth.users; create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
+create or replace function public.is_admin() returns boolean language sql stable security definer set search_path=public as $$ select exists(select 1 from public.profiles where id=auth.uid() and role='admin'); $$;
+revoke all on function public.is_admin() from public; grant execute on function public.is_admin() to authenticated;
+alter table public.profiles enable row level security; alter table public.ebooks enable row level security; alter table public.builder_pages enable row level security; alter table public.site_settings enable row level security;
+drop policy if exists profiles_self on public.profiles; create policy profiles_self on public.profiles for select to authenticated using (id=auth.uid() or public.is_admin());
+drop policy if exists ebooks_read on public.ebooks; create policy ebooks_read on public.ebooks for select to authenticated using (owner_id=auth.uid() or is_public or public.is_admin());
+drop policy if exists ebooks_insert on public.ebooks; create policy ebooks_insert on public.ebooks for insert to authenticated with check (owner_id=auth.uid());
+drop policy if exists ebooks_update on public.ebooks; create policy ebooks_update on public.ebooks for update to authenticated using (owner_id=auth.uid() or public.is_admin()) with check (owner_id=auth.uid() or public.is_admin());
+drop policy if exists ebooks_delete on public.ebooks; create policy ebooks_delete on public.ebooks for delete to authenticated using (owner_id=auth.uid() or public.is_admin());
+drop policy if exists builder_owner on public.builder_pages; create policy builder_owner on public.builder_pages for all to authenticated using (owner_id=auth.uid() or public.is_admin()) with check (owner_id=auth.uid() or public.is_admin());
+drop policy if exists settings_read on public.site_settings; create policy settings_read on public.site_settings for select to authenticated using (true); drop policy if exists settings_admin on public.site_settings; create policy settings_admin on public.site_settings for all to authenticated using (public.is_admin()) with check (public.is_admin());
+insert into storage.buckets(id,name,public) values ('ebooks','ebooks',false) on conflict (id) do nothing;
+drop policy if exists ebooks_storage_read on storage.objects; create policy ebooks_storage_read on storage.objects for select to authenticated using (bucket_id='ebooks' and (owner_id = auth.uid() or public.is_admin()));
+drop policy if exists ebooks_storage_insert on storage.objects; create policy ebooks_storage_insert on storage.objects for insert to authenticated with check (bucket_id='ebooks' and (owner_id = auth.uid()));
+drop policy if exists ebooks_storage_update on storage.objects; create policy ebooks_storage_update on storage.objects for update to authenticated using (bucket_id='ebooks' and (owner_id = auth.uid() or public.is_admin())) with check (bucket_id='ebooks' and (owner_id = auth.uid() or public.is_admin()));
+drop policy if exists ebooks_storage_delete on storage.objects; create policy ebooks_storage_delete on storage.objects for delete to authenticated using (bucket_id='ebooks' and (owner_id = auth.uid() or public.is_admin()));

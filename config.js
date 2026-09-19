@@ -1,7 +1,6 @@
-/* Supabase browser configuration. Replace these values for production. */
+/* Supabase browser configuration. Never put a service_role key here. */
 window.BAHAGIA_CONFIG = {
   supabaseUrl: '',
   supabaseAnonKey: '',
-  // Local mode keeps the UI usable while Supabase is being configured.
-  localMode: true
+  storageBucket: 'ebooks'
 };
