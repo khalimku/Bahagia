@@ -55,6 +55,7 @@
             <div class="book-status">${book.is_public ? 'Publik' : 'Pribadi'}</div>
             <div class="book-actions">
               <button class="mini-btn" data-book-action="open" data-book-index="${index}">Buka</button>
+              <button class="mini-btn" data-book-action="edit" data-book-index="${index}">Edit Judul</button>
               <button class="mini-btn" data-book-action="toggle" data-book-index="${index}">${book.is_public ? 'Jadikan Pribadi' : 'Jadikan Publik'}</button>
               <button class="mini-btn danger" data-book-action="delete" data-book-index="${index}">Hapus</button>
             </div>
@@ -69,6 +70,7 @@
         const item = books[index];
         if (!item) return;
         if (action === 'open') openBook(item);
+        if (action === 'edit') editBook(item);
         if (action === 'toggle') togglePublicBook(item);
         if (action === 'delete') deleteBook(item);
       };
@@ -253,6 +255,40 @@
       toast(`Membuka ${book.title || 'ebook'}`);
     } catch (error) {
       toast(error.message || 'Gagal membuka ebook publik.', true);
+    }
+  }
+
+  async function editBook(book) {
+    if (!book) return;
+    const nextTitle = prompt('Masukkan judul baru ebook:', book.title || book.name);
+    if (nextTitle === null) return;
+    const title = nextTitle.trim();
+    if (!title) {
+      toast('Judul tidak boleh kosong.', true);
+      return;
+    }
+
+    try {
+      if (!remote) {
+        book.title = title;
+        book.name = title;
+        localSave();
+        renderBooks();
+        renderPublicReader();
+        toast('Judul ebook diperbarui.');
+        return;
+      }
+
+      const { error } = await sb.from('ebooks').update({ title }).eq('id', book.id);
+      if (error) throw error;
+      book.title = title;
+      book.name = title;
+      publicBooks = publicBooks.map(item => item.id === book.id ? { ...item, title, name: title } : item);
+      renderBooks();
+      renderPublicReader();
+      toast('Judul ebook diperbarui.');
+    } catch (error) {
+      toast(error.message || 'Gagal mengubah judul ebook.', true);
     }
   }
 
